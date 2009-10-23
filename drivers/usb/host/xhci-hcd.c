@@ -802,7 +802,7 @@ int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 
 		usb_hcd_unlink_urb_from_ep(hcd, urb);
 		spin_unlock_irqrestore(&xhci->lock, flags);
-		usb_hcd_giveback_urb(xhci_to_hcd(xhci), urb, 0);
+		usb_hcd_giveback_urb(xhci_to_hcd(xhci), urb, -ESHUTDOWN);
 		kfree(td);
 		return ret;
 	}
@@ -895,7 +895,7 @@ int xhci_drop_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	ctrl_ctx->drop_flags |= drop_flag;
 	new_drop_flags = ctrl_ctx->drop_flags;
 
-	ctrl_ctx->add_flags = ~drop_flag;
+	ctrl_ctx->add_flags &= ~drop_flag;
 	new_add_flags = ctrl_ctx->add_flags;
 
 	last_ctx = xhci_last_valid_endpoint(ctrl_ctx->add_flags);
