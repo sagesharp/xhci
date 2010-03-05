@@ -1,5 +1,5 @@
 /**
- * drivers/usb/class/usbtmc.c - USB Test & Measurment class driver
+ * drivers/usb/class/usbtmc.c - USB Test & Measurement class driver
  *
  * Copyright (C) 2007 Stefan Kopp, Gechingen, Germany
  * Copyright (C) 2008 Novell, Inc.
@@ -557,10 +557,16 @@ static ssize_t usbtmc_write(struct file *filp, const char __user *buf,
 		n_bytes = roundup(12 + this_part, 4);
 		memset(buffer + 12 + this_part, 0, n_bytes - (12 + this_part));
 
-		retval = usb_bulk_msg(data->usb_dev,
-				      usb_sndbulkpipe(data->usb_dev,
-						      data->bulk_out),
-				      buffer, n_bytes, &actual, USBTMC_TIMEOUT);
+		do {
+			retval = usb_bulk_msg(data->usb_dev,
+					      usb_sndbulkpipe(data->usb_dev,
+							      data->bulk_out),
+					      buffer, n_bytes,
+					      &actual, USBTMC_TIMEOUT);
+			if (retval != 0)
+				break;
+			n_bytes -= actual;
+		} while (n_bytes);
 
 		data->bTag_last_write = data->bTag;
 		data->bTag++;
@@ -1089,13 +1095,13 @@ static void usbtmc_disconnect(struct usb_interface *intf)
 	kref_put(&data->kref, usbtmc_delete);
 }
 
-static int usbtmc_suspend (struct usb_interface *intf, pm_message_t message)
+static int usbtmc_suspend(struct usb_interface *intf, pm_message_t message)
 {
 	/* this driver does not have pending URBs */
 	return 0;
 }
 
-static int usbtmc_resume (struct usb_interface *intf)
+static int usbtmc_resume(struct usb_interface *intf)
 {
 	return 0;
 }

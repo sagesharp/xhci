@@ -1276,13 +1276,16 @@ static int map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 
 	if (usb_endpoint_xfer_control(&urb->ep->desc)
 	    && !(urb->transfer_flags & URB_NO_SETUP_DMA_MAP)) {
-		if (hcd->self.uses_dma)
+		if (hcd->self.uses_dma) {
 			urb->setup_dma = dma_map_single(
 					hcd->self.controller,
 					urb->setup_packet,
 					sizeof(struct usb_ctrlrequest),
 					DMA_TO_DEVICE);
-		else if (hcd->driver->flags & HCD_LOCAL_MEM)
+			if (dma_mapping_error(hcd->self.controller,
+						urb->setup_dma))
+				return -EAGAIN;
+		} else if (hcd->driver->flags & HCD_LOCAL_MEM)
 			ret = hcd_alloc_coherent(
 					urb->dev->bus, mem_flags,
 					&urb->setup_dma,
@@ -1294,13 +1297,16 @@ static int map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 	dir = usb_urb_dir_in(urb) ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
 	if (ret == 0 && urb->transfer_buffer_length != 0
 	    && !(urb->transfer_flags & URB_NO_TRANSFER_DMA_MAP)) {
-		if (hcd->self.uses_dma)
+		if (hcd->self.uses_dma) {
 			urb->transfer_dma = dma_map_single (
 					hcd->self.controller,
 					urb->transfer_buffer,
 					urb->transfer_buffer_length,
 					dir);
-		else if (hcd->driver->flags & HCD_LOCAL_MEM) {
+			if (dma_mapping_error(hcd->self.controller,
+						urb->transfer_dma))
+				return -EAGAIN;
+		} else if (hcd->driver->flags & HCD_LOCAL_MEM) {
 			ret = hcd_alloc_coherent(
 					urb->dev->bus, mem_flags,
 					&urb->transfer_dma,
@@ -1591,7 +1597,9 @@ rescan:
 }
 
 /**
- * Check whether a new bandwidth setting exceeds the bus bandwidth.
+ * usb_hcd_alloc_bandwidth - check whether a new bandwidth setting exceeds
+ *				the bus bandwidth
+ * @udev: target &usb_device
  * @new_config: new configuration to install
  * @cur_alt: the current alternate interface setting
  * @new_alt: alternate interface setting that is being installed
@@ -1615,7 +1623,7 @@ int usb_hcd_alloc_bandwidth(struct usb_device *udev,
 		struct usb_host_interface *new_alt)
 {
 	int num_intfs, i, j;
-	struct usb_host_interface *alt = 0;
+	struct usb_host_interface *alt = NULL;
 	int ret = 0;
 	struct usb_hcd *hcd;
 	struct usb_host_endpoint *ep;
