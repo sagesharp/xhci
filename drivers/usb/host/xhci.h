@@ -1047,6 +1047,7 @@ struct xhci_ring {
 	 */
 	u32			cycle_state;
 	unsigned int		stream_id;
+	unsigned int		num_trbs_free;
 };
 
 struct xhci_erst_entry {

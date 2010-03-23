@@ -169,6 +169,8 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 	if (!ring->first_seg)
 		goto fail;
 	num_segs--;
+	/* Don't count the link TRB */
+	ring->num_trbs_free = TRBS_PER_SEGMENT - 1;
 
 	prev = ring->first_seg;
 	while (num_segs > 0) {
@@ -178,6 +180,8 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		if (!next)
 			goto fail;
 		xhci_link_segments(xhci, prev, next, link_trbs);
+		/* Don't count the link TRB */
+		ring->num_trbs_free += TRBS_PER_SEGMENT - 1;
 
 		prev = next;
 		num_segs--;

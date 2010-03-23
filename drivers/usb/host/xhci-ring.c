@@ -145,6 +145,10 @@ static void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 	unsigned long long addr;
 
 	ring->deq_updates++;
+	/* If we're the producer for this ring, there is one more usable TRB. */
+	if (!consumer)
+		ring->num_trbs_free++;
+
 	/* Update the dequeue pointer further if that was a link TRB or we're at
 	 * the end of an event ring segment (which doesn't have link TRBS)
 	 */
@@ -193,6 +197,10 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 	next = ++(ring->enqueue);
 
 	ring->enq_updates++;
+	/* If we're the producer for this ring, there is one less usable TRB. */
+	if (!consumer)
+		ring->num_trbs_free--;
+
 	/* Update the dequeue pointer further if that was a link TRB or we're at
 	 * the end of an event ring segment (which doesn't have link TRBS)
 	 */
@@ -243,6 +251,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	int i;
 	union xhci_trb *enq = ring->enqueue;
 	struct xhci_segment *enq_seg = ring->enq_seg;
+	unsigned long segment_offset;
 	struct xhci_segment *cur_seg;
 	unsigned int left_on_ring;
 
@@ -253,6 +262,21 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		enq = enq_seg->trbs;
 	}
 
+	/* There must be at least one free TRB on the ring between the enqueue
+	 * and dequeue pointer.
+	 */
+	if (ring->num_trbs_free > num_trbs)
+		return 1;
+
+	/* Ok, we need a new ring segment to house all these TRBs.
+	 * Find a link TRB that hasn't been given over to the hardware to
+	 * modify.  Yes, we could just turn a TRB in the middle of the ring into
+	 * a link TRB, but this breaks the current cancellation code.  Current
+	 * drivers that will enqueue large transfers will do so one at a time,
+	 * when the ring is empty.
+	 */
+	segment_offset = ring->enqueue - enq_seg->trbs;
+#if 0
 	/* Check if ring is empty */
 	if (enq == ring->dequeue) {
 		/* Can't use link trbs */
@@ -282,6 +306,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		}
 	}
 	return 1;
+#endif
 }
 
 void xhci_set_hc_event_deq(struct xhci_hcd *xhci)
