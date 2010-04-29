@@ -1744,6 +1744,7 @@ cleanup:
 	for (i = 0; i < num_eps; i++) {
 		ep_index = xhci_get_endpoint_index(&eps[i]->desc);
 		xhci_free_stream_info(xhci, vdev->eps[ep_index].stream_info);
+		vdev->eps[ep_index].stream_info = NULL;
 		/* FIXME Unset maxPstreams in endpoint context and
 		 * update deq ptr to point to normal string ring.
 		 */
@@ -1824,6 +1825,7 @@ int xhci_free_streams(struct usb_hcd *hcd, struct usb_device *udev,
 	for (i = 0; i < num_eps; i++) {
 		ep_index = xhci_get_endpoint_index(&eps[i]->desc);
 		xhci_free_stream_info(xhci, vdev->eps[ep_index].stream_info);
+		vdev->eps[ep_index].stream_info = NULL;
 		/* FIXME Unset maxPstreams in endpoint context and
 		 * update deq ptr to point to normal string ring.
 		 */
