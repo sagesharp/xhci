@@ -162,15 +162,18 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		return NULL;
 
 	INIT_LIST_HEAD(&ring->td_list);
-	if (num_segs == 0)
+	if (num_segs == 0) {
+		ring->num_trbs_free = 0;
 		return ring;
+	}
+
+	ring->num_trbs_free = num_segs*TRBS_PER_SEGMENT;
+	ring->num_segs = num_segs;
 
 	ring->first_seg = xhci_segment_alloc(xhci, flags);
 	if (!ring->first_seg)
 		goto fail;
 	num_segs--;
-	/* Don't count the link TRB */
-	ring->num_trbs_free = TRBS_PER_SEGMENT - 1;
 
 	prev = ring->first_seg;
 	while (num_segs > 0) {
@@ -180,8 +183,6 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		if (!next)
 			goto fail;
 		xhci_link_segments(xhci, prev, next, link_trbs);
-		/* Don't count the link TRB */
-		ring->num_trbs_free += TRBS_PER_SEGMENT - 1;
 
 		prev = next;
 		num_segs--;

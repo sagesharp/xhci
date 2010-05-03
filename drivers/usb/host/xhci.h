@@ -1048,6 +1048,7 @@ struct xhci_ring {
 	u32			cycle_state;
 	unsigned int		stream_id;
 	unsigned int		num_trbs_free;
+	unsigned int		num_segs;
 };
 
 struct xhci_erst_entry {
