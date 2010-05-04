@@ -242,8 +242,6 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 /*
  * Check to see if there's room to enqueue num_trbs on the ring.  See rules
  * above.
- * FIXME: this would be simpler and faster if we just kept track of the number
- * of free TRBs in a ring.
  */
 static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		unsigned int num_trbs)
@@ -251,7 +249,14 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	int i;
 	union xhci_trb *enq = ring->enqueue;
 	struct xhci_segment *enq_seg = ring->enq_seg;
+
+	struct xhci_segment *cur_seg;
+	union xhci_trb *start_trb;
+	union xhci_trb *end_trb;
 	unsigned long segment_offset;
+	unsigned long total_trbs_used = 0;
+	unsigned long num_trbs_left = num_trbs;
+	unsigned long num_free_trbs = 0;
 	struct xhci_segment *cur_seg;
 	unsigned int left_on_ring;
 
@@ -260,6 +265,68 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	while (last_trb(xhci, ring, enq_seg, enq)) {
 		enq_seg = enq_seg->next;
 		enq = enq_seg->trbs;
+
+	/* Figure out how many TRBs the transfer will use (including link TRBs).
+	 * The first if statement in the loop takes care of these cases:
+	 *
+	 * hw owned                    free     <--- start_trb
+	 * hw owned                    free
+	 * free <--- enq = start_trb   free
+	 * free                        hw owned <--- deq
+	 * free                        hw owned
+	 * hw owned <--- deq           free     <--- enq
+	 * hw owned                    free
+	 * link TRB                    link TRB
+	 *
+	 * The case on the right will be hit after one iteration of the
+	 * for loop.
+	 */
+	for (cur_seg = enq, start_trb = ring->enqueue;
+			total_trbs_used < num_trbs;
+			cur_seg = cur_seg->next_seg,
+			start_trb = &cur_seg->trbs[0]) {
+		if (ring->deq_seg == cur_seg && start_trb < ring->dequeue) {
+			end_trb = ring->dequeue;
+			num_free_trbs = (end_trb - start_trb) /
+				sizeof(*end_trb);
+			/* Subtract one, since we need one free TRB between the
+			 * enqueue and dequeue pointers.
+			 */
+			num_free_trbs -= 1;
+			if (num_free_trbs < num_trbs_left) {
+				num_trbs_left -= num_free_trbs;
+				goto expand_ring;
+			}
+			/* No link TRBs in the middle of this transfer, since it
+			 * will end before the dequeue pointer (which must be
+			 * above or on the link TRB).
+			 */
+			total_trbs_used += num_trbs_left;
+			num_trbs_left = 0;
+			break;
+		}
+
+		/* One TRB past the link TRB on the segment, so we count it */
+		end_trb = &ring->segment[TRBS_PER_SEGMENT];
+		num_free_trbs = (end_trb - start_trb) / sizeof(*end_trb);
+		/* If the dequeue pointer is at the top of the next segment, we
+		 * can't use that link TRB (because we need one free TRB between
+		 * the enqueue and dequeue pointers).
+		 */
+		if (cur_seg->next == ring->deq_seg &&
+				ring->dequeue == &ring->deq_seg->trbs[0])
+			num_free_trbs -= 1;
+
+		if (num_free_trbs > num_trbs_left) {
+			total_trbs_used += num_trbs_left;
+			break;
+		}
+		/* Since we have to give a link TRB to the hardware in the
+		 * middle of this TD, we need one more free TRB on the next
+		 * segment.
+		 */
+		num_trbs_left++;
+		total_trbs_used += num_free_trbs;
 	}
 
 	/* There must be at least one free TRB on the ring between the enqueue
@@ -268,6 +335,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (ring->num_trbs_free > num_trbs)
 		return 1;
 
+expand_ring:
 	/* Ok, we need a new ring segment to house all these TRBs.
 	 * Find a link TRB that hasn't been given over to the hardware to
 	 * modify.  Yes, we could just turn a TRB in the middle of the ring into

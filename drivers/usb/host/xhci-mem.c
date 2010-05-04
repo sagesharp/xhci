@@ -162,13 +162,12 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		return NULL;
 
 	INIT_LIST_HEAD(&ring->td_list);
+	ring->num_segs = num_segs;
+	ring->num_trbs_free = num_segs*TRBS_PER_SEGMENT;
+
 	if (num_segs == 0) {
-		ring->num_trbs_free = 0;
 		return ring;
 	}
-
-	ring->num_trbs_free = num_segs*TRBS_PER_SEGMENT;
-	ring->num_segs = num_segs;
 
 	ring->first_seg = xhci_segment_alloc(xhci, flags);
 	if (!ring->first_seg)
