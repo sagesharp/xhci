@@ -642,6 +642,8 @@ remove_finished_td:
 		/* Otherwise ring the doorbell(s) to restart queued transfers */
 		ring_doorbell_for_active_rings(xhci, slot_id, ep_index);
 	}
+	ep->stopped_td = NULL;
+	ep->stopped_trb = NULL;
 
 	/*
 	 * Drop the lock and complete the URBs in the cancelled TD list.
@@ -1141,8 +1143,13 @@ static void xhci_cleanup_halted_endpoint(struct xhci_hcd *xhci,
 	ep->stopped_td = td;
 	ep->stopped_trb = event_trb;
 	ep->stopped_stream = stream_id;
+
 	xhci_queue_reset_ep(xhci, slot_id, ep_index);
 	xhci_cleanup_stalled_ring(xhci, td->urb->dev, ep_index);
+
+	ep->stopped_td = NULL;
+	ep->stopped_trb = NULL;
+
 	xhci_ring_cmd_db(xhci);
 }
 
