@@ -283,7 +283,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	 */
 	for (cur_seg = enq, start_trb = ring->enqueue;
 			total_trbs_used < num_trbs;
-			cur_seg = cur_seg->next_seg,
+			cur_seg = cur_seg->next,
 			start_trb = &cur_seg->trbs[0]) {
 		if (ring->deq_seg == cur_seg && start_trb < ring->dequeue) {
 			end_trb = ring->dequeue;
@@ -307,7 +307,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		}
 
 		/* One TRB past the link TRB on the segment, so we count it */
-		end_trb = &ring->segment[TRBS_PER_SEGMENT];
+		end_trb = &cur_seg->trbs[TRBS_PER_SEGMENT];
 		num_free_trbs = (end_trb - start_trb) / sizeof(*end_trb);
 		/* If the dequeue pointer is at the top of the next segment, we
 		 * can't use that link TRB (because we need one free TRB between
