@@ -246,8 +246,6 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		unsigned int num_trbs)
 {
-	int i;
-	union xhci_trb *enq = ring->enqueue;
 	struct xhci_segment *enq_seg = ring->enq_seg;
 
 	struct xhci_segment *cur_seg;
@@ -281,7 +279,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	 * The case on the right will be hit after one iteration of the
 	 * for loop.
 	 */
-	for (cur_seg = enq, start_trb = ring->enqueue;
+	for (cur_seg = ring->enq_seg, start_trb = ring->enqueue;
 			total_trbs_used < num_trbs;
 			cur_seg = cur_seg->next,
 			start_trb = &cur_seg->trbs[0]) {
@@ -375,6 +373,7 @@ expand_ring:
 	}
 	return 1;
 #endif
+	return 0;
 }
 
 void xhci_set_hc_event_deq(struct xhci_hcd *xhci)
