@@ -203,6 +203,54 @@ fail:
 	return NULL;
 }
 
+/*
+ * Link in num_segments_needed more segments, by modifying the enqueue segment
+ * link TRB.  Only call this function with the command ring or a transfer ring,
+ * not the event ring!
+ */
+int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
+		unsigned int num_segments_needed)
+{
+	struct xhci_segment *old_next;
+	struct xhci_segment *new_seg;
+	struct xhci_segment *cur_seg;
+	unsigned int i = num_segments_needed;
+
+	cur_seg = ring->enq_seg;
+	old_next = cur_seg->next;
+	while (i > 0) {
+		/*
+		 * Have to assume we're in interrupt context with a storage
+		 * driver enqueueing URBs during an error condition.
+		 */
+		cur_seg->next = xhci_segment_alloc(xhci, GFP_NOIO);
+		if (!cur_seg->next)
+			goto revert_ring;
+		cur_seg = cur_seg->next;
+		i--;
+	}
+	cur_seg->next = old_next;
+	/* Now do all the modification of the link TRBs */
+	new_seg = ring->enq_seg;
+	while (new_seg != cur_seg) {
+		/* Only the event ring doesn't have link TRBs. */
+		xhci_link_segments(xhci, new_seg, new_seg->next, true);
+		new_seg = new_seg->next;
+	}
+	xhci_link_segments(xhci, new_seg, new_seg->next, true);
+	return 1;
+
+revert_ring:
+	new_seg = ring->enq_seg->next;
+	while (new_seg != NULL) {
+		cur_seg = new_seg->next;
+		xhci_segment_free(xhci, new_seg);
+		new_seg = cur_seg;
+	}
+	ring->enq_seg->next = old_next;
+	return 0;
+}
+
 void xhci_free_or_cache_endpoint_ring(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
 		unsigned int ep_index)

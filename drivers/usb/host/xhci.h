@@ -1326,6 +1326,8 @@ struct xhci_ring *xhci_stream_id_to_ring(
 		struct xhci_virt_device *dev,
 		unsigned int ep_index,
 		unsigned int stream_id);
+int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
+		unsigned int num_segments_needed);
 struct xhci_command *xhci_alloc_command(struct xhci_hcd *xhci,
 		bool allocate_in_ctx, bool allocate_completion,
 		gfp_t mem_flags);
