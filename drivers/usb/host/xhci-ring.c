@@ -240,6 +240,22 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 }
 
 /*
+ * Test the room_on_ring and ring expansion code.  Returns 0 on failure, 1 on
+ * success.
+ */
+int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
+{
+	struct xhci_ring *ring;
+
+	ring = xhci_ring_alloc(xhci, 1, true, flags);
+	if (!ring)
+		return 0;
+	/* Test several one-segment cases that should not need expansion. */
+	/* Test the case where we can't modify the link TRB. */
+	return 1;
+}
+
+/*
  * Check to see if there's room to enqueue num_trbs on the ring.  See rules
  * above.
  */
@@ -251,6 +267,8 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 
 	if (ring->num_trbs_free >= num_trbs)
 		return 1;
+	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
+			num_trbs_needed);
 
 	num_trbs_needed = num_trbs - ring->num_trbs_free;
 	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",

@@ -150,7 +150,7 @@ static void xhci_initialize_ring_info(struct xhci_ring *ring)
  * Set the end flag and the cycle toggle bit on the last segment.
  * See section 4.9.1 and figures 15 and 16.
  */
-static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
+struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 		unsigned int num_segs, bool link_trbs, gfp_t flags)
 {
 	struct xhci_ring	*ring;
@@ -253,6 +253,7 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	return 1;
 
 revert_ring:
+	xhci_dbg(xhci, "Could not allocate %u rings.\n", i);
 	new_seg = ring->enq_seg->next;
 	while (new_seg != NULL) {
 		cur_seg = new_seg->next;
