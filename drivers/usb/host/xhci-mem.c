@@ -164,16 +164,14 @@ static struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 	INIT_LIST_HEAD(&ring->td_list);
 	ring->num_segs = num_segs;
 
+	if (num_segs == 0)
+		return ring;
 	/*
 	 * Can't use each of the link TRBs on the segment, and always need one
 	 * extra TRB between the dequeue and the enqueue pointer for SW
-	 * accounting perposes.
+	 * accounting purposes.
 	 */
 	ring->num_trbs_free = num_segs*(TRBS_PER_SEGMENT - 1) - 1;
-
-	if (num_segs == 0) {
-		return ring;
-	}
 
 	ring->first_seg = xhci_segment_alloc(xhci, flags);
 	if (!ring->first_seg)

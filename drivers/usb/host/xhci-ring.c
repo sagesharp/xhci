@@ -201,7 +201,6 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 	next = ++(ring->enqueue);
 
 	ring->enq_updates++;
-
 	/* Update the dequeue pointer further if that was a link TRB or we're at
 	 * the end of an event ring segment (which doesn't have link TRBS)
 	 */
@@ -267,7 +266,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	 * hardware, we can't modify the link TRB.
 	 */
 	if (ring->enq_seg == ring->deq_seg &&
-			ring->enqueue > ring->dequeue) {
+			ring->enqueue < ring->dequeue) {
 		xhci_warn(xhci, "Not enough room on ring and cannot expand; "
 				"requested %u TRBs, need %lu TRBs more\n",
 				num_trbs, num_trbs_needed);
@@ -275,10 +274,8 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	}
 
 	/* Ok, we can expand the ring.  How many segments do we need? */
-	num_segments_needed = ((num_trbs_needed + TRBS_PER_SEGMENT - 1) /
+	num_segments_needed = ((num_trbs_needed + (TRBS_PER_SEGMENT - 1) - 1) /
 			(TRBS_PER_SEGMENT - 1));
-	/* Add one more segment, just in case. */
-	num_segments_needed++;
 	return xhci_expand_ring(xhci, ring, num_segments_needed);
 }
 
