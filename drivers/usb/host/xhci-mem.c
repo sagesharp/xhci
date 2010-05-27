@@ -226,6 +226,8 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		xhci_err(xhci, "Is event ring processing working correctly?\n");
 		return 0;
 	}
+	xhci_dbg(xhci, "Expanding ring:\n");
+	xhci_debug_ring(xhci, ring);
 
 	cur_seg = ring->enq_seg;
 	old_next = cur_seg->next;
@@ -250,6 +252,7 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	}
 	xhci_link_segments(xhci, new_seg, new_seg->next, true);
 	ring->num_segs += num_segments_needed;
+	xhci_debug_ring(xhci, ring);
 	return 1;
 
 revert_ring:
