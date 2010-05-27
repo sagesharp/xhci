@@ -303,6 +303,7 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 				"says %u TRBs won't fit\n",
 				ring->num_trbs_free,
 				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 
@@ -312,18 +313,22 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 				"says %u TRBs won't fit\n",
 				ring->num_trbs_free,
 				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 
 	enq_updates = 6;
-	for (i = 0; i < enq_updates; i++)
+	for (i = 0; i < enq_updates; i++) {
+		ring->enqueue->generic.field[3] ^= TRB_CYCLE;
 		inc_enq(xhci, ring, false);
+	}
 	if (ring->num_trbs_free != (max_trbs - enq_updates)) {
 		xhci_dbg(xhci, "inc_enq not working properly after "
 				"updating enqueue %u times\n", enq_updates);
 		xhci_dbg(xhci, "Should be %u TRBs free, but ring reports %u\n",
 				max_trbs - enq_updates,
 				ring->num_trbs_free);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 	num_trbs_requested = max_trbs - enq_updates;
@@ -332,6 +337,7 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 				"says %u TRBs won't fit\n",
 				ring->num_trbs_free,
 				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 
@@ -344,6 +350,7 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 		xhci_dbg(xhci, "Should be %u TRBs free, but ring reports %u\n",
 				max_trbs,
 				ring->num_trbs_free);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 
@@ -354,11 +361,14 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 				"says %u TRBs won't fit\n",
 				ring->num_trbs_free,
 				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 	enq_updates = max_trbs - enq_updates;
-	for (i = 0; i < enq_updates; i++)
+	for (i = 0; i < enq_updates; i++) {
+		ring->enqueue->generic.field[3] ^= TRB_CYCLE;
 		inc_enq(xhci, ring, false);
+	}
 	/* Set the chain bit on TRB 63 so we give the link TRB to the HW */
 	if (ring->enqueue != &ring->enq_seg->trbs[TRBS_PER_SEGMENT - 2]) {
 		xhci_dbg(xhci, "Test math for chain bit is off "
@@ -366,14 +376,17 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 		xhci_dbg(xhci, "ring->dequeue = %p last TRB before link = %p\n",
 				ring->dequeue,
 				&ring->enq_seg[TRBS_PER_SEGMENT - 2]);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 	ring->enqueue->generic.field[3] |= TRB_CHAIN;
 	/* Move the enqueue pointer past the last TRB, and the first on the top
 	 * of the ring.
 	 */
-	for (i = enq_updates; i < (enq_updates + 2); i++)
+	for (i = enq_updates; i < (enq_updates + 2); i++) {
+		ring->enqueue->generic.field[3] ^= TRB_CYCLE;
 		inc_enq(xhci, ring, false);
+	}
 	enq_updates += 2;
 	/* Should be able to fit four more TRBs on the ring. */
 	num_trbs_requested = 4;
@@ -382,6 +395,7 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 				"says %u TRBs won't fit\n",
 				ring->num_trbs_free,
 				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
 	/* But a request for five TRBs should fail, because we can't expand the
@@ -391,8 +405,23 @@ int xhci_test_room_on_ring(struct xhci_hcd *xhci, gfp_t flags)
 	if (room_on_ring(xhci, ring, num_trbs_requested)) {
 		xhci_dbg(xhci, "room_on_ring expanded ring when "
 				"HW owned link TRB\n");
+		xhci_ring_free(xhci, ring);
 		return 0;
 	}
+	/* Update the dequeue pointer to match the enqueue pointer */
+	for (i = 0; i < enq_updates; i++)
+		inc_deq(xhci, ring, false);
+	num_trbs_requested = max_trbs*2 + 1;
+	if (!room_on_ring(xhci, ring, num_trbs_requested)) {
+		xhci_dbg(xhci, "Ring was not expanded!\n");
+		xhci_dbg(xhci, "Ring has %u free TRBs, but room_on_ring "
+				"says %u TRBs won't fit\n",
+				ring->num_trbs_free,
+				num_trbs_requested);
+		xhci_ring_free(xhci, ring);
+		return 0;
+	}
+	xhci_ring_free(xhci, ring);
 	return 1;
 }
 
