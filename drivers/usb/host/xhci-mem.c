@@ -211,6 +211,11 @@ fail:
  * Link in num_segments_needed more segments, by modifying the enqueue segment
  * link TRB.  Only call this function with the command ring or a transfer ring,
  * not the event ring!
+ *
+ * Make sure that the hardware will not immediately execute the TRBs in the new
+ * segment(s) by setting the cycle bit to be opposite of the current cycle bit.
+ * If we're modifying a link TRB with a toggle cycle bit, move that to the end
+ * of the new segment(s).
  */
 int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		unsigned int num_segments_needed)
@@ -219,6 +224,8 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	struct xhci_segment *new_seg;
 	struct xhci_segment *cur_seg;
 	unsigned int i = num_segments_needed;
+	unsigned int j;
+	union xhci_trb *tmp_trb;
 
 	if (ring->num_segs + num_segments_needed > MAX_SEGMENTS) {
 		xhci_err(xhci, "ERROR: Ring needs more than %u segments?\n",
@@ -239,9 +246,20 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		cur_seg->next = xhci_segment_alloc(xhci, GFP_NOIO);
 		if (!cur_seg->next)
 			goto revert_ring;
+		/* Set the cycle bit of every TRB in this segment, if the
+		 * current ring cycle bit is supposed to be zero (otherwise the
+		 * hardware will think it owns all the zeroed TRBs).
+		 */
+		if (ring->cycle_state == 0) {
+			for (j = 0; j < TRBS_PER_SEGMENT; j++) {
+				tmp_trb = &cur_seg->next->trbs[j];
+				tmp_trb->generic.field[3] |= TRB_CYCLE;
+			}
+		}
 		cur_seg = cur_seg->next;
 		i--;
 	}
+	/* cur_seg is now the last newly allocated segment */
 	cur_seg->next = old_next;
 	/* Now do all the modification of the link TRBs */
 	new_seg = ring->enq_seg;
@@ -251,6 +269,18 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		new_seg = new_seg->next;
 	}
 	xhci_link_segments(xhci, new_seg, new_seg->next, true);
+	/*
+	 * Check if we've just added segments onto the end of the ring.
+	 * If so, clear the toggle cycle bit in the current enqueue segment,
+	 * and set it in the last segment we added.
+	 */
+	tmp_trb = &ring->enq_seg->trbs[TRBS_PER_SEGMENT - 1];
+	if (tmp_trb->link.control & LINK_TOGGLE) {
+		tmp_trb->link.control &= ~LINK_TOGGLE;
+		tmp_trb = &cur_seg->trbs[TRBS_PER_SEGMENT - 1];
+		tmp_trb->link.control |= LINK_TOGGLE;
+	}
+
 	ring->num_segs += num_segments_needed;
 	xhci_debug_ring(xhci, ring);
 	return 1;
