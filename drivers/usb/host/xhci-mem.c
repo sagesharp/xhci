@@ -220,6 +220,13 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	struct xhci_segment *cur_seg;
 	unsigned int i = num_segments_needed;
 
+	if (ring->num_segs + num_segments_needed > MAX_SEGMENTS) {
+		xhci_err(xhci, "ERROR: Ring needs more than %u segments?\n",
+				MAX_SEGMENTS);
+		xhci_err(xhci, "Is event ring processing working correctly?\n");
+		return 0;
+	}
+
 	cur_seg = ring->enq_seg;
 	old_next = cur_seg->next;
 	while (i > 0) {
@@ -242,6 +249,7 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		new_seg = new_seg->next;
 	}
 	xhci_link_segments(xhci, new_seg, new_seg->next, true);
+	ring->num_segs += num_segments_needed;
 	return 1;
 
 revert_ring:

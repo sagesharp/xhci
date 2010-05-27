@@ -998,6 +998,11 @@ union xhci_trb {
  * It must also be greater than 16.
  */
 #define TRBS_PER_SEGMENT	64
+/*
+ * Rather arbitrary limit to keep rings from expanding out of control when the
+ * dequeue pointer isn't being updated and the driver keeps enqueueing URBs.
+ */
+#define MAX_SEGMENTS		10
 /* Allow two commands + a link TRB, along with any reserved command TRBs */
 #define MAX_RSVD_CMD_TRBS	(TRBS_PER_SEGMENT - 3)
 #define SEGMENT_SIZE		(TRBS_PER_SEGMENT*16)
