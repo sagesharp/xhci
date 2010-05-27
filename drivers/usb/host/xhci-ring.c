@@ -141,13 +141,14 @@ static void next_trb(struct xhci_hcd *xhci,
  */
 static void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer)
 {
-	union xhci_trb *next = ++(ring->dequeue);
+	union xhci_trb *next;
 	unsigned long long addr;
 
 	ring->deq_updates++;
 	/* If we're the producer for this ring, there is one more usable TRB. */
-	if (!consumer)
+	if (!consumer && !last_trb(xhci, ring, ring->deq_seg, ring->dequeue))
 		ring->num_trbs_free++;
+	next = ++(ring->dequeue);
 
 	/* Update the dequeue pointer further if that was a link TRB or we're at
 	 * the end of an event ring segment (which doesn't have link TRBS)
@@ -194,12 +195,12 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 	unsigned long long addr;
 
 	chain = ring->enqueue->generic.field[3] & TRB_CHAIN;
+	/* If we're the producer for this ring, there is one less usable TRB. */
+	if (!consumer && !last_trb(xhci, ring, ring->enq_seg, ring->enqueue))
+		ring->num_trbs_free--;
 	next = ++(ring->enqueue);
 
 	ring->enq_updates++;
-	/* If we're the producer for this ring, there is one less usable TRB. */
-	if (!consumer)
-		ring->num_trbs_free--;
 
 	/* Update the dequeue pointer further if that was a link TRB or we're at
 	 * the end of an event ring segment (which doesn't have link TRBS)
@@ -240,99 +241,6 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring, bool consumer
 }
 
 /*
- * Returns 0 if the ring can fit all the TRBs that need to be enqueued,
- * or returns the number of extra TRBs we'll need.
- */
-static unsigned long count_extra_trbs_needed(struct xhci_ring *ring,
-		unsigned int num_trbs)
-{
-	unsigned long num_trbs_left;
-	struct xhci_segment *cur_seg;
-	union xhci_trb *start_trb;
-	union xhci_trb *end_trb;
-
-	/* Check if ring is empty */
-	if (ring->enqueue == ring->dequeue) {
-		/* Can't use link trbs */
-		num_trbs_left = TRBS_PER_SEGMENT - 1;
-		for (cur_seg = ring->enq_seg->next; cur_seg != ring->enq_seg;
-				cur_seg = cur_seg->next)
-			num_trbs_left += TRBS_PER_SEGMENT - 1;
-
-		/* Always need one TRB free in the ring. */
-		num_trbs_left -= 1;
-		if (num_trbs > num_trbs_left) {
-			return num_trbs - num_trbs_left;
-		}
-		return 0;
-	}
-
-	/*
-	 * The second if statement in the loop takes care of these cases:
-	 *
-	 * hw owned                    free     <--- start_trb
-	 * hw owned                    free
-	 * free <--- enq = start_trb   free
-	 * free                        hw owned <--- deq
-	 * free                        hw owned
-	 * hw owned <--- deq           free     <--- enq
-	 * hw owned                    free
-	 * link TRB                    link TRB
-	 *
-	 * The case on the right will be hit after one iteration of the
-	 * for loop.
-	 */
-	num_trbs_left = num_trbs;
-	for (cur_seg = ring->enq_seg, start_trb = ring->enqueue;
-			true;
-			cur_seg = cur_seg->next,
-			start_trb = &cur_seg->trbs[0]) {
-		unsigned long num_free_trbs = 0;
-		/* Skip to next segment if the enqueue ptr is on a link TRB. */
-		if (start_trb == &cur_seg->trbs[TRBS_PER_SEGMENT - 1])
-			continue;
-
-		if (ring->deq_seg == cur_seg && start_trb < ring->dequeue) {
-			end_trb = ring->dequeue;
-			num_free_trbs = (end_trb - start_trb) /
-				sizeof(*end_trb);
-			/*
-			 * Subtract one, since we need one free TRB between the
-			 * enqueue and dequeue pointers.
-			 */
-			num_free_trbs -= 1;
-			if (num_free_trbs < num_trbs_left)
-				/* Need to expand the ring */
-				return num_trbs_left - num_free_trbs;
-			return 0;
-		}
-
-		/*
-		 * Count number of TRBs between the starting TRB, and the link
-		 * TRB, including the starting TRB.
-		 */
-		end_trb = &cur_seg->trbs[TRBS_PER_SEGMENT - 1];
-		num_free_trbs = (end_trb - start_trb) / sizeof(*end_trb);
-		/*
-		 * If the dequeue pointer is at the top of the next segment, we
-		 * can't use the TRB before this segment's link TRB (because we
-		 * need one free TRB between the enqueue and dequeue pointers).
-		 */
-		if (cur_seg->next == ring->deq_seg &&
-				ring->dequeue == &ring->deq_seg->trbs[0])
-			num_free_trbs -= 1;
-
-		/*
-		 * Stop our ring walk early if we have enough room on this
-		 * segment for all the remaining TRBs.
-		 */
-		if (num_free_trbs >= num_trbs_left)
-			return 0;
-		num_trbs_left -= num_free_trbs;
-	}
-}
-
-/*
  * Check to see if there's room to enqueue num_trbs on the ring.  See rules
  * above.
  */
@@ -342,9 +250,12 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	unsigned long num_trbs_needed;
 	unsigned long num_segments_needed;
 
-	num_trbs_needed = count_extra_trbs_needed(ring, num_trbs);
-	if (num_trbs_needed == 0)
+	if (ring->num_trbs_free >= num_trbs)
 		return 1;
+
+	num_trbs_needed = num_trbs - ring->num_trbs_free;
+	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
+			num_trbs_needed);
 
 	/*
 	 * Ok, we need a new ring segment to house all these TRBs.
