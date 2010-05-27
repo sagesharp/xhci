@@ -251,8 +251,6 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 
 	if (ring->num_trbs_free >= num_trbs)
 		return 1;
-	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
-			num_trbs_needed);
 
 	num_trbs_needed = num_trbs - ring->num_trbs_free;
 	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
