@@ -239,11 +239,7 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	cur_seg = ring->enq_seg;
 	old_next = cur_seg->next;
 	while (i > 0) {
-		/*
-		 * Have to assume we're in interrupt context with a storage
-		 * driver enqueueing URBs during an error condition.
-		 */
-		cur_seg->next = xhci_segment_alloc(xhci, GFP_NOIO);
+		cur_seg->next = xhci_segment_alloc(xhci, GFP_ATOMIC);
 		if (!cur_seg->next)
 			goto revert_ring;
 		/* Set the cycle bit of every TRB in this segment, if the
@@ -283,6 +279,7 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 
 	ring->num_segs += num_segments_needed;
 	xhci_debug_ring(xhci, ring);
+	ring->num_trbs_free += (TRBS_PER_SEGMENT - 1)*num_segments_needed;
 	return 1;
 
 revert_ring:
