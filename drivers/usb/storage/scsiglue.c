@@ -128,7 +128,7 @@ static int slave_configure(struct scsi_device *sdev)
 	 * are limiting both to 32K (64 sectores).
 	 */
 	if (us->fflags & (US_FL_MAX_SECTORS_64 | US_FL_MAX_SECTORS_MIN)) {
-		unsigned int max_sectors = 64;
+		unsigned int max_sectors = 6*64;
 
 		if (us->fflags & US_FL_MAX_SECTORS_MIN)
 			max_sectors = PAGE_CACHE_SIZE >> 9;
@@ -541,7 +541,7 @@ struct scsi_host_template usb_stor_host_template = {
 	.sg_tablesize =			SCSI_MAX_SG_CHAIN_SEGMENTS,
 
 	/* limit the total size of a transfer to 120 KB */
-	.max_sectors =                  240,
+	.max_sectors =                  960,
 
 	/* merge commands... this seems to help performance, but
 	 * periodically someone should test to see which setting is more
