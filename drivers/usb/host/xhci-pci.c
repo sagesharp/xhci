@@ -55,6 +55,10 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
 	int			retval;
 
 	hcd->self.sg_tablesize = MAX_SEGMENTS*(TRBS_PER_SEGMENT - 1) - 1;
+	xhci_dbg(xhci, "sg_tablesize would be %u, supposed to be %u\n",
+			hcd->self.sg_tablesize,
+			MAX_SEGMENTS*(TRBS_PER_SEGMENT - 1) - 1);
+	hcd->self.sg_tablesize = 0;
 
 	xhci->cap_regs = hcd->regs;
 	xhci->op_regs = hcd->regs +
