@@ -324,6 +324,23 @@ void xhci_debug_segment(struct xhci_hcd *xhci, struct xhci_segment *seg)
 	}
 }
 
+void xhci_debug_segment_warn(struct xhci_hcd *xhci, struct xhci_segment *seg)
+{
+	int i;
+	u32 addr = (u32) seg->dma;
+	union xhci_trb *trb = seg->trbs;
+
+	for (i = 0; i < TRBS_PER_SEGMENT; ++i) {
+		trb = &seg->trbs[i];
+		xhci_warn(xhci, "@%08x %08x %08x %08x %08x\n", addr,
+				lower_32_bits(trb->link.segment_ptr),
+				upper_32_bits(trb->link.segment_ptr),
+				(unsigned int) trb->link.intr_target,
+				(unsigned int) trb->link.control);
+		addr += sizeof(*trb);
+	}
+}
+
 void xhci_dbg_ring_ptrs(struct xhci_hcd *xhci, struct xhci_ring *ring)
 {
 	xhci_dbg(xhci, "Ring deq = %p (virt), 0x%llx (dma)\n",
@@ -338,6 +355,28 @@ void xhci_dbg_ring_ptrs(struct xhci_hcd *xhci, struct xhci_ring *ring)
 							    ring->enqueue));
 	xhci_dbg(xhci, "Ring enq updated %u times\n",
 			ring->enq_updates);
+}
+
+void xhci_debug_td_list_warn(struct xhci_hcd *xhci, struct xhci_ring *ring)
+{
+	struct list_head *entry;
+	struct xhci_td *cur_td = NULL;
+	unsigned int i = 1;
+	dma_addr_t addr;
+
+	if (list_empty(&ring->td_list)) {
+		xhci_warn(xhci, "Ring's TD list is empty.\n");
+		return;
+	}
+
+	list_for_each(entry, &ring->td_list) {
+		cur_td = list_entry(entry, struct xhci_td, td_list);
+		addr = xhci_trb_virt_to_dma(cur_td->start_seg,
+				cur_td->first_trb);
+		xhci_warn(xhci, "TD %u starts at %llx (dma)\n", i,
+				(unsigned long long) addr);
+		i++;
+	}
 }
 
 /**
@@ -362,6 +401,31 @@ void xhci_debug_ring(struct xhci_hcd *xhci, struct xhci_ring *ring)
 	}
 	for (seg = first_seg->next; seg != first_seg; seg = seg->next)
 		xhci_debug_segment(xhci, seg);
+}
+
+void xhci_debug_ring_warn(struct xhci_hcd *xhci, struct xhci_ring *ring)
+{
+	/* FIXME: Throw an error if any segment doesn't have a Link TRB */
+	struct xhci_segment *seg;
+	struct xhci_segment *first_seg = ring->first_seg;
+	dma_addr_t dequeue;
+	dma_addr_t enqueue;
+
+	if (!ring->enq_updates && !ring->deq_updates) {
+		xhci_warn(xhci, "  Ring has not been updated\n");
+		return;
+	}
+	xhci_warn(xhci, "Enqueue (virt) = %p\n", ring->enqueue);
+	enqueue = xhci_trb_virt_to_dma(ring->enq_seg, ring->enqueue);
+	xhci_warn(xhci, "Enqueue (dma) = %llu\n", (unsigned long long) enqueue);
+	xhci_warn(xhci, "Dequeue (virt) = %p\n", ring->dequeue);
+	dequeue = xhci_trb_virt_to_dma(ring->deq_seg, ring->dequeue);
+	xhci_warn(xhci, "Dequeue (dma) = %llu\n", (unsigned long long) dequeue);
+
+	xhci_debug_segment_warn(xhci, first_seg);
+	for (seg = first_seg->next; seg != first_seg; seg = seg->next)
+		xhci_debug_segment_warn(xhci, seg);
+	xhci_debug_td_list_warn(xhci, ring);
 }
 
 void xhci_dbg_ep_rings(struct xhci_hcd *xhci,

@@ -253,7 +253,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		return 1;
 
 	num_trbs_needed = num_trbs - ring->num_trbs_free;
-	xhci_dbg(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
+	xhci_warn(xhci, "Out of room on ring, need to find room for %lu TRBs\n",
 			num_trbs_needed);
 
 	/*
@@ -270,6 +270,7 @@ static int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		xhci_warn(xhci, "Not enough room on ring and cannot expand; "
 				"requested %u TRBs, need %lu TRBs more\n",
 				num_trbs, num_trbs_needed);
+		xhci_debug_ring_warn(xhci, ring);
 		return 0;
 	}
 
@@ -2005,6 +2006,8 @@ static unsigned int count_sg_trbs_needed(struct xhci_hcd *xhci, struct urb *urb)
 				urb->ep->desc.bEndpointAddress,
 				urb->transfer_buffer_length,
 				num_trbs);
+	if (num_trbs > 30)
+		xhci_warn(xhci, "%u TRBs enqueued.\n", num_trbs);
 	return num_trbs;
 }
 

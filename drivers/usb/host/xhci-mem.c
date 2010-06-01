@@ -233,8 +233,10 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		xhci_err(xhci, "Is event ring processing working correctly?\n");
 		return 0;
 	}
-	xhci_dbg(xhci, "Expanding ring:\n");
-	xhci_debug_ring(xhci, ring);
+	xhci_warn(xhci, "ring->num_trbs_free = %u\n", ring->num_trbs_free);
+	xhci_warn(xhci, "ring->num_segs = %u\n", ring->num_segs);
+	xhci_warn(xhci, "Expanding ring:\n");
+	xhci_debug_ring_warn(xhci, ring);
 
 	cur_seg = ring->enq_seg;
 	old_next = cur_seg->next;
@@ -278,8 +280,10 @@ int xhci_expand_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	}
 
 	ring->num_segs += num_segments_needed;
-	xhci_debug_ring(xhci, ring);
 	ring->num_trbs_free += (TRBS_PER_SEGMENT - 1)*num_segments_needed;
+	xhci_warn(xhci, "ring->num_trbs_free = %u\n", ring->num_trbs_free);
+	xhci_warn(xhci, "ring->num_segs = %u\n", ring->num_segs);
+	xhci_debug_ring_warn(xhci, ring);
 	return 1;
 
 revert_ring:
