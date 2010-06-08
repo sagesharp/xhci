@@ -200,6 +200,8 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 				prev, (unsigned long long)prev->dma);
 	}
 	xhci_initialize_ring_info(ring);
+	ring->urbs_enqueued = 0;
+	ring->urbs_dequeued = 0;
 	return ring;
 
 fail:

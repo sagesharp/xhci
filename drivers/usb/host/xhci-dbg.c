@@ -425,6 +425,10 @@ void xhci_debug_ring_warn(struct xhci_hcd *xhci, struct xhci_ring *ring)
 	xhci_debug_segment_warn(xhci, first_seg);
 	for (seg = first_seg->next; seg != first_seg; seg = seg->next)
 		xhci_debug_segment_warn(xhci, seg);
+	xhci_warn(xhci, "%llu URBs enqueued\n", ring->urbs_enqueued);
+	xhci_warn(xhci, "%llu URBs dequeued\n", ring->urbs_dequeued);
+	xhci_warn(xhci, "%llu URBs in flight\n",
+			ring->urbs_enqueued - ring->urbs_dequeued);
 	xhci_debug_td_list_warn(xhci, ring);
 }
 

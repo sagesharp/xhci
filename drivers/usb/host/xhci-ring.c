@@ -824,6 +824,8 @@ remove_finished_td:
 				struct xhci_td, cancelled_td_list);
 		list_del(&cur_td->cancelled_td_list);
 
+		ep_ring = xhci_urb_to_transfer_ring(xhci, cur_td->urb);
+		ep_ring->urbs_dequeued++;
 		/* Clean up the cancelled URB */
 		/* Doesn't matter what we pass for status, since the core will
 		 * just overwrite it (because the URB has been unlinked).
@@ -1746,6 +1748,7 @@ cleanup:
 		usb_hcd_unlink_urb_from_ep(xhci_to_hcd(xhci), urb);
 		xhci_dbg(xhci, "Giveback URB %p, len = %d, status = %d\n",
 				urb, urb->actual_length, status);
+		ep_ring->urbs_dequeued++;
 		spin_unlock(&xhci->lock);
 		usb_hcd_giveback_urb(xhci_to_hcd(xhci), urb, status);
 		spin_lock(&xhci->lock);
@@ -2232,6 +2235,7 @@ static int queue_bulk_sg_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	check_trb_math(urb, num_trbs, running_total);
 	giveback_first_trb(xhci, slot_id, ep_index, urb->stream_id,
 			start_cycle, start_trb, td);
+	ep_ring->urbs_enqueued++;
 	return 0;
 }
 
@@ -2356,6 +2360,7 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	check_trb_math(urb, num_trbs, running_total);
 	giveback_first_trb(xhci, slot_id, ep_index, urb->stream_id,
 			start_cycle, start_trb, td);
+	ep_ring->urbs_enqueued++;
 	return 0;
 }
 

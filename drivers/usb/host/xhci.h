@@ -1054,6 +1054,8 @@ struct xhci_ring {
 	unsigned int		stream_id;
 	unsigned int		num_trbs_free;
 	unsigned int		num_segs;
+	unsigned long long	urbs_enqueued;
+	unsigned long long	urbs_dequeued;
 };
 
 struct xhci_erst_entry {
